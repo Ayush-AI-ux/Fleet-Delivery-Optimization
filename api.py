@@ -549,7 +549,7 @@ If asked for a recommendation, give one based on the live data above.
 """
 
     try:
-        genai.configure(api_key="AIzaSyA4DS3_7kTKlLdmC-gQG-VKfdQjRDkuBXM")
+        genai.configure(api_key="GEMINI_API_KEY")
         model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(context + f"\n\nUser Question: {query}")
         return {"answer": response.text, "tick": tick["value"]}
