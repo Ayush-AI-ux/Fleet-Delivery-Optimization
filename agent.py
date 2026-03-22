@@ -5,7 +5,7 @@ import google.generativeai as genai
 
 # ── CONFIGURE GEMINI ──────────────────────────────────────────────────
 
-GEMINI_API_KEY = "AIzaSyA4DS3_7kTKlLdmC-gQG-VKfdQjRDkuBXM"
+GEMINI_API_KEY = "GEMINI_API_KEY"
 genai.configure(api_key=GEMINI_API_KEY)
 
 # ── AGENT MEMORY ──────────────────────────────────────────────────────
