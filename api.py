@@ -510,8 +510,6 @@ def get_routes():
 
 @app.post("/api/query")
 async def natural_language_query(request: Request):
-    import google.generativeai as genai
-
     body  = await request.json()
     query = body.get("query", "")
 
@@ -549,11 +547,19 @@ If asked for a recommendation, give one based on the live data above.
 """
 
     try:
-        genai.configure(api_key="GEMINI_API_KEY")
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        response = model.generate_content(context + f"\n\nUser Question: {query}")
+        # Import client from agent.py (shared client)
+        from agent import client
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=context + f"\n\nUser Question: {query}"
+        )
         return {"answer": response.text, "tick": tick["value"]}
+
     except Exception as e:
+        print(f"[NLP Query Error] {e}")
+        import traceback
+        traceback.print_exc()
         return {"answer": f"Query error: {str(e)}", "tick": tick["value"]}
 
 # ── WEBSOCKET ENDPOINT ────────────────────────────────────────────────

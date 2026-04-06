@@ -1,12 +1,15 @@
 import time
 import threading
 import json
-import google.generativeai as genai
+from google import genai
+import os
+from dotenv import load_dotenv
 
-# ── CONFIGURE GEMINI ──────────────────────────────────────────────────
+# ── LOAD ENVIRONMENT VARIABLES ────────────────────────────────────────
+load_dotenv()  # Loads GEMINI_API_KEY from .env file
 
-GEMINI_API_KEY = "GEMINI_API_KEY"
-genai.configure(api_key=GEMINI_API_KEY)
+# ── CONFIGURE GEMINI CLIENT (NEW SDK) ────────────────────────────────
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ── AGENT MEMORY ──────────────────────────────────────────────────────
 
@@ -101,9 +104,13 @@ RESPOND IN THIS EXACT JSON FORMAT:
 
 Respond ONLY with valid JSON, no other text."""
 
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        response = model.generate_content(prompt)
-        raw      = response.text.strip()
+        # === NEW SDK CALL ===
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+
+        raw = response.text.strip()
 
         # clean markdown fences if present
         if raw.startswith("```"):
@@ -228,3 +235,4 @@ def get_agent_state():
         "total_actions": len(agent_memory["actions"])
     }
 
+__all__ = ["client"]

@@ -8,7 +8,8 @@ import {
 import {
   Truck, Activity, Package, AlertTriangle,
   CheckCircle, Clock, Zap, Globe, Settings,
-  TrendingUp, MessageSquare, Brain, RefreshCw
+  TrendingUp, MessageSquare, Brain, RefreshCw,
+  BarChart2, Search, FileText
 } from "lucide-react";
 
 const API = "http://127.0.0.1:8000";
@@ -413,6 +414,11 @@ export default function App() {
   const [tick,      setTick]      = useState(0);
   const [toast,     setToast]     = useState(null);
   const [loading,   setLoading]   = useState({});
+  const [forecast,      setForecast]      = useState(null);
+  const [tuning,        setTuning]        = useState(null);
+  const [orders,        setOrders]        = useState([]);
+  const [explain,       setExplain]       = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState("");
   const wsRef = useRef(null);
 
   const notify = (msg, type = "success") => {
@@ -448,11 +454,12 @@ export default function App() {
   // ── POLLING for non-WS data ─────────────────────────────────────────
 
   const refresh = async () => {
-    const [sc, ct, hi, rl, ab, an, ag] = await Promise.all([
+    const [sc, ct, hi, rl, ab, an, ag, fc, tu, or] = await Promise.all([
       get("/api/scenario"), get("/api/city"),
       get("/api/history"),  get("/api/rl/status"),
       get("/api/ab/results"),get("/api/anomalies"),
-      get("/api/agent")
+      get("/api/agent"),    get("/api/forecast"),
+      get("/api/tuning"),   get("/api/orders"),
     ]);
     if (sc) setScenario(sc);
     if (ct) setCity(ct);
@@ -461,7 +468,18 @@ export default function App() {
     if (ab) setAbData(ab);
     if (an) setAnomalies(an);
     if (ag) setAgentAI(ag);
+    if (fc) setForecast(fc);
+    if (tu) setTuning(tu);
+    if (or) setOrders(or);
   };
+
+  const fetchExplain = async (orderId) => {
+    if (!orderId) return;
+    const res = await get(`/api/explain/${orderId}`);
+    if (res) setExplain(res);
+  };
+
+  const assignedOrders = orders.filter(o => o.status === "assigned");
 
   useEffect(() => {
     refresh();
@@ -1157,7 +1175,123 @@ export default function App() {
             </Btn>
           </Panel>
         </div>
+        
+        {/* ── DEMAND FORECAST ── */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
+          <Panel title="Demand Forecast" titleIcon={BarChart2}>
+            {forecast && forecast.history?.length > 1 ? (
+              <>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:10 }}>
+                  {[
+                    { val: forecast.prediction, label:'NEXT TICK' },
+                    { val: forecast.avg_demand, label:'AVG DEMAND' },
+                    { val: forecast.trend?.toUpperCase(), label:'TREND' },
+                  ].map(({ val, label }) => (
+                    <div key={label} style={{ background:'var(--bg-panel-alt)', border:'1px solid var(--border-dim)', borderRadius:2, padding:'8px', textAlign:'center' }}>
+                      <div style={{ fontFamily:'Orbitron', fontSize:14, fontWeight:700, color:'var(--accent-purple)', textShadow:'0 0 8px rgba(155,93,229,0.4)' }}>{val}</div>
+                      <div style={{ fontSize:8, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.12em', marginTop:3 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={110}>
+                  <LineChart data={forecast.history.map((v,i) => ({ tick:i, demand:v }))}>
+                    <XAxis dataKey="tick" tick={{ fontSize:8, fill:'#3a6070', fontFamily:'Share Tech Mono' }} axisLine={{ stroke:'var(--border-dim)' }} tickLine={false} />
+                    <YAxis tick={{ fontSize:8, fill:'#3a6070', fontFamily:'Share Tech Mono' }} axisLine={{ stroke:'var(--border-dim)' }} tickLine={false} />
+                    <Tooltip {...tooltipStyle} />
+                    <Line type="monotone" dataKey="demand" stroke="var(--accent-purple)" strokeWidth={1.5} dot={false} name="Demand" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            ) : (
+              <div style={{ fontSize:10, fontFamily:'Share Tech Mono', color:'var(--text-dim)', padding:8 }}>COLLECTING DATA<span className="blink">_</span></div>
+            )}
+          </Panel>
 
+          {/* ── WEIGHT TUNER ── */}
+          <Panel title="Weight Auto-Tuner · Results" titleIcon={Settings}>
+            <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:12 }}>
+              <Btn onClick={async () => {
+                notify("Weight tuning started — testing 10 combinations...","info");
+                await post("/api/tuning/start");
+                await refresh();
+              }} variant="primary">▶ START TUNING</Btn>
+              {tuning && <Badge text={tuning.status} color={tuning.status==="complete"?"green":tuning.status==="running"?"amber":"blue"} />}
+              {tuning?.best && <span style={{ fontSize:10, fontFamily:'Share Tech Mono', color:'var(--accent-green)' }}>Best: {tuning.best.score} score</span>}
+            </div>
+            {tuning?.results?.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'40px 60px 70px 70px 70px 60px 60px 60px', gap:6, padding:'4px 8px', fontSize:8, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.1em' }}>
+                  <span>RANK</span><span>SCORE</span><span>ON-TIME</span><span>DIST</span><span>PROX</span><span>CAP</span><span>URG</span><span>DEAD</span>
+                </div>
+                {tuning.results.slice(0,5).map((r,i) => (
+                  <div key={i} style={{ display:'grid', gridTemplateColumns:'40px 60px 70px 70px 70px 60px 60px 60px', gap:6, padding:'6px 8px', borderRadius:2, background:i===0?'rgba(0,255,136,0.05)':'var(--bg-panel-alt)', border:`1px solid ${i===0?'rgba(0,255,136,0.2)':'var(--border-dim)'}`, fontSize:10, fontFamily:'Share Tech Mono' }}>
+                    <span style={{ color:i===0?'var(--accent-green)':'var(--text-dim)' }}>#{i+1}</span>
+                    <span style={{ color:'var(--accent-amber)' }}>{r.score}</span>
+                    <span style={{ color:'var(--accent-green)' }}>{r.on_time_rate}%</span>
+                    <span style={{ color:'var(--text-secondary)' }}>{r.avg_distance}u</span>
+                    <span style={{ color:'var(--accent-cyan)' }}>{r.weights.W_PROXIMITY}</span>
+                    <span style={{ color:'var(--text-secondary)' }}>{r.weights.W_CAPACITY}</span>
+                    <span style={{ color:'var(--text-secondary)' }}>{r.weights.W_URGENCY}</span>
+                    <span style={{ color:'var(--text-secondary)' }}>{r.weights.W_DEADLINE}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        {/* ── DECISION EXPLAINABILITY ── */}
+        <Panel title="Decision Explainability" titleIcon={Search} style={{ marginBottom:16 }}>
+          <div style={{ display:'flex', gap:10, marginBottom:12, alignItems:'center' }}>
+            <select
+              value={selectedOrder}
+              onChange={e => { setSelectedOrder(e.target.value); fetchExplain(e.target.value); }}
+              style={{ flex:1, background:'var(--bg-deep)', border:'1px solid var(--border-glow)', color:'var(--text-primary)', borderRadius:2, padding:'7px 10px', fontSize:11, fontFamily:'Share Tech Mono', outline:'none', cursor:'pointer' }}
+            >
+              <option value="">SELECT ORDER TO EXPLAIN_</option>
+              {assignedOrders.slice(0,20).map(o => (
+                <option key={o.order_id} value={o.order_id}>
+                  Order {o.order_id} | P{o.priority} | Deadline {o.deadline}s
+                </option>
+              ))}
+            </select>
+          </div>
+          {explain && explain.candidates && (
+            <>
+              <div style={{ display:'flex', gap:10, marginBottom:10, flexWrap:'wrap' }}>
+                {[
+                  { label:'ORDER',    val:`#${explain.order_id}` },
+                  { label:'PRIORITY', val:`P${explain.priority}` },
+                  { label:'DEADLINE', val:`${explain.deadline}s` },
+                  { label:'ASSIGNED', val:`AGENT ${explain.assigned_agent}` },
+                ].map(({ label, val }) => (
+                  <div key={label} style={{ background:'var(--bg-panel-alt)', border:'1px solid var(--border-dim)', borderRadius:2, padding:'6px 12px' }}>
+                    <div style={{ fontSize:8, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.12em' }}>{label}</div>
+                    <div style={{ fontSize:12, fontFamily:'Orbitron', color:'var(--accent-cyan)', marginTop:2 }}>{val}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                {explain.candidates.map((c,i) => (
+                  <div key={i} style={{ display:'grid', gridTemplateColumns:'60px 80px 80px 80px 80px 1fr 80px', gap:8, alignItems:'center', padding:'7px 10px', borderRadius:2, background:c.is_assigned?'rgba(0,255,136,0.06)':'var(--bg-panel-alt)', border:`1px solid ${c.is_assigned?'rgba(0,255,136,0.3)':c.eligible?'var(--border-dim)':'rgba(255,56,96,0.2)'}`, fontSize:10, fontFamily:'Share Tech Mono' }}>
+                    <span style={{ color:'var(--accent-cyan)' }}>A{c.agent_id}</span>
+                    <span style={{ color:'var(--text-secondary)' }}>{c.score.toFixed(4)}</span>
+                    <span style={{ color:'var(--text-dim)' }}>{c.distance}u</span>
+                    <span style={{ color:'var(--text-dim)' }}>{c.est_time}s ETA</span>
+                    <span style={{ color:'var(--text-dim)' }}>{c.delay}x delay</span>
+                    <span style={{ color:c.eligible?'var(--accent-green)':'var(--accent-red)', fontSize:9 }}>
+                      {c.eligible ? '✓ ELIGIBLE' : `✗ ${c.reason}`}
+                    </span>
+                    <span style={{ color:c.is_assigned?'var(--accent-green)':'transparent', fontWeight:700 }}>
+                      {c.is_assigned ? '⭐ CHOSEN' : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Panel>
+        
         {/* ── FOOTER ── */}
         <div style={{
           borderTop: '1px solid var(--border-dim)', paddingTop: 12,
