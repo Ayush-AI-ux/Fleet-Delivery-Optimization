@@ -394,6 +394,99 @@ const tooltipStyle = {
   labelStyle: { color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono' },
 };
 
+// ----- Report Panel ----------------------------------------------------
+const ReportPanel = () => {
+  const [reports,    setReports]    = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [selected,   setSelected]   = useState(0);
+
+  const fetchReports = async () => {
+    const r = await get("/api/reports");
+    if (r) setReports(r);
+  };
+
+  useEffect(() => {
+    fetchReports();
+    const i = setInterval(fetchReports, 5000);
+    return () => clearInterval(i);
+  }, []);
+
+  const generate = async () => {
+    setGenerating(true);
+    await post("/api/reports/generate");
+    setTimeout(async () => {
+      await fetchReports();
+      setGenerating(false);
+    }, 10000);
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
+        <Btn onClick={generate} variant="primary" disabled={generating}>
+          {generating ? "⟳ GENERATING..." : "📋 GENERATE REPORT"}
+        </Btn>
+        {reports?.last_generated && (
+          <span style={{ fontSize:10, fontFamily:'Share Tech Mono', color:'var(--text-dim)' }}>
+            Last generated: {reports.last_generated}
+          </span>
+        )}
+        <Badge text={`${reports?.total || 0} REPORTS`} color="blue" />
+      </div>
+
+      {reports?.reports?.length > 0 && (
+        <div style={{ display:'grid', gridTemplateColumns:'200px 1fr', gap:12 }}>
+          {/* Report list */}
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            {reports.reports.map((r,i) => (
+              <button key={r.id} onClick={() => setSelected(i)}
+                style={{ padding:'8px 10px', cursor:'pointer', textAlign:'left', borderRadius:2, background:selected===i?'rgba(15,163,177,0.1)':'var(--bg-panel-alt)', border:`1px solid ${selected===i?'var(--accent-cyan)':'var(--border-dim)'}`, transition:'all 0.15s' }}>
+                <div style={{ fontSize:10, fontFamily:'Orbitron', color:selected===i?'var(--accent-cyan)':'var(--text-secondary)', marginBottom:3 }}>
+                  REPORT #{r.id}
+                </div>
+                <div style={{ fontSize:9, fontFamily:'Share Tech Mono', color:'var(--text-dim)' }}>
+                  {r.city} · {r.scenario}
+                </div>
+                <div style={{ fontSize:9, fontFamily:'Share Tech Mono', color:'var(--text-dim)' }}>
+                  {r.on_time}% on-time · T{r.tick}
+                </div>
+                {r.status === "fallback" && (
+                  <Badge text="FALLBACK" color="amber" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Report content */}
+          {reports.reports[selected] && (
+            <div style={{ background:'var(--bg-panel-alt)', border:'1px solid var(--border-dim)', borderRadius:2, padding:14 }}>
+              {/* Report header */}
+              <div style={{ display:'flex', gap:10, marginBottom:12, flexWrap:'wrap' }}>
+                {[
+                  { label:'CITY',      val: reports.reports[selected].city },
+                  { label:'SCENARIO',  val: reports.reports[selected].scenario },
+                  { label:'ON-TIME',   val: `${reports.reports[selected].on_time}%` },
+                  { label:'DELIVERED', val: reports.reports[selected].delivered },
+                  { label:'TICK',      val: reports.reports[selected].tick },
+                ].map(({ label, val }) => (
+                  <div key={label} style={{ background:'var(--bg-panel)', border:'1px solid var(--border-dim)', borderRadius:2, padding:'5px 10px' }}>
+                    <div style={{ fontSize:8, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.12em' }}>{label}</div>
+                    <div style={{ fontSize:11, fontFamily:'Orbitron', color:'var(--accent-cyan)', marginTop:1 }}>{val}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Report body */}
+              <div style={{ fontSize:11, fontFamily:'Share Tech Mono', color:'var(--text-mono)', lineHeight:1.8, whiteSpace:'pre-wrap', letterSpacing:'0.03em', maxHeight:280, overflowY:'auto' }}>
+                {reports.reports[selected].content}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── MAIN APP ──────────────────────────────────────────────────────────
 
 export default function App() {
@@ -1291,7 +1384,10 @@ export default function App() {
             </>
           )}
         </Panel>
-        
+        {/* ── INCIDENT REPORTS ── */}
+        <Panel title="LLM Incident Report Generator" titleIcon={FileText} style={{ marginBottom:16 }}>
+          <ReportPanel />
+        </Panel>
         {/* ── FOOTER ── */}
         <div style={{
           borderTop: '1px solid var(--border-dim)', paddingTop: 12,

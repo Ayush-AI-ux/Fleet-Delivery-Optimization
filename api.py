@@ -27,7 +27,7 @@ from agent import start_agent, get_agent_state
 from rl_engine import get_rl_agent, get_rl_status, start_training, assign_orders_rl
 from anomaly import get_detector
 from ab_testing import start_ab_test, get_ab_results
-
+from incident_report import start_report_generation, get_reports
 # ── GLOBAL STATE ──────────────────────────────────────────────────────
 
 sim     = SimulationState()
@@ -561,6 +561,15 @@ If asked for a recommendation, give one based on the live data above.
         import traceback
         traceback.print_exc()
         return {"answer": f"Query error: {str(e)}", "tick": tick["value"]}
+    
+# --- Incident report Endpoints ------------------------------------------
+@app.get("/api/reports")
+def get_incident_reports():
+    return get_reports()
+
+@app.post("/api/reports/generate")
+def generate_report():
+    return start_report_generation(sim, metrics, tick, get_detector())
 
 # ── WEBSOCKET ENDPOINT ────────────────────────────────────────────────
 
