@@ -1,0 +1,109 @@
+# =============================================
+# Python
+# =============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# =============================================
+# Frontend (React / Node)
+# =============================================
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+frontend/.yarn/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.next/
+frontend/out/
+
+# =============================================
+# IDE & Editor
+# =============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =============================================
+# Project Specific
+# =============================================
+*.db
+*.sqlite3
+fleet_engine.db
+*.csv
+*.log
+map_output.html
+
+# Temporary / Output files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.log
+*.out
+*.html  # if generated dynamically
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# ML / Model files (if any)
+*.pkl
+*.joblib
+*.h5
+*.onnx
+
+# =============================================
+# OS Generated
+# =============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
