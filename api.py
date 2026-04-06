@@ -28,6 +28,7 @@ from rl_engine import get_rl_agent, get_rl_status, start_training, assign_orders
 from anomaly import get_detector
 from ab_testing import start_ab_test, get_ab_results
 from incident_report import start_report_generation, get_reports
+from database import get_tick_history
 # ── GLOBAL STATE ──────────────────────────────────────────────────────
 
 sim     = SimulationState()
@@ -119,7 +120,7 @@ def simulation_loop():
 
     while running["value"]:
         try:
-            time.sleep(TICK_INTERVAL)
+            time.sleep(TICK_INTERVAL / _speed_multiplier["value"])
             tick["value"] += 1
 
             move_agents(sim, metrics)
@@ -571,6 +572,66 @@ def get_incident_reports():
 def generate_report():
     return start_report_generation(sim, metrics, tick, get_detector())
 
+
+# ── RESET ENDPOINT ────────────────────────────────────────────────────
+
+@app.post("/api/reset")
+def reset_simulation():
+    global sim, metrics, tick
+    sim                        = SimulationState()
+    assigned, _                = assign_orders(sim, verbose=False)
+    metrics.total_assigned     = assigned
+    metrics.total_delivered    = 0
+    metrics.total_reassigned   = 0
+    metrics.total_failed       = 0
+    metrics.on_time_deliveries = 0
+    metrics.decision_logs      = []
+    tick["value"]              = 0
+    get_forecaster().history.clear()
+    get_detector().__init__()
+    metrics.log("SYSTEM  Simulation reset — fresh start")
+    return {"status": "ok", "message": "Simulation reset successfully"}
+
+# ── SPEED CONTROL ─────────────────────────────────────────────────────
+
+_speed_multiplier = {"value": 1.0}
+
+@app.get("/api/speed")
+def get_speed():
+    return {"speed": _speed_multiplier["value"]}
+
+@app.post("/api/speed/{multiplier}")
+def set_speed(multiplier: float):
+    if multiplier not in [0.5, 1.0, 2.0, 5.0]:
+        return {"error": "Speed must be 0.5, 1.0, 2.0 or 5.0"}
+    _speed_multiplier["value"] = multiplier
+    metrics.log(f"SYSTEM  Speed set to {multiplier}x")
+    return {"status": "ok", "speed": multiplier}
+
+# ── REPLAY ENDPOINT ───────────────────────────────────────────────────
+
+@app.get("/api/replay/sessions")
+def get_replay_sessions():
+    rows = get_tick_history(200)
+    if not rows:
+        return {"sessions": [], "total_ticks": 0}
+    return {
+        "total_ticks": len(rows),
+        "tick_range":  {"min": rows[0][0], "max": rows[-1][0]},
+        "sessions":    [
+            {
+                "tick":         r[0],
+                "on_time_rate": r[1],
+                "avg_distance": r[2],
+                "delivered":    r[3],
+                "reassigned":   r[4],
+                "agents_busy":  r[5],
+                "cost_saved":   r[6]
+            }
+            for r in rows
+        ]
+    }
+    
 # ── WEBSOCKET ENDPOINT ────────────────────────────────────────────────
 
 @app.websocket("/ws")

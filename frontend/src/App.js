@@ -512,6 +512,8 @@ export default function App() {
   const [orders,        setOrders]        = useState([]);
   const [explain,       setExplain]       = useState(null);
   const [selectedOrder, setSelectedOrder] = useState("");
+  const [speed,   setSpeed]   = useState(1.0);
+  const [replay,  setReplay]  = useState(null);
   const wsRef = useRef(null);
 
   const notify = (msg, type = "success") => {
@@ -547,13 +549,24 @@ export default function App() {
   // ── POLLING for non-WS data ─────────────────────────────────────────
 
   const refresh = async () => {
-    const [sc, ct, hi, rl, ab, an, ag, fc, tu, or] = await Promise.all([
-      get("/api/scenario"), get("/api/city"),
-      get("/api/history"),  get("/api/rl/status"),
-      get("/api/ab/results"),get("/api/anomalies"),
-      get("/api/agent"),    get("/api/forecast"),
-      get("/api/tuning"),   get("/api/orders"),
+    const [
+      sc, ct, hi, rl, ab, an, ag, fc, tu, or,
+      sp, rp
+    ] = await Promise.all([
+      get("/api/scenario"), 
+      get("/api/city"),
+      get("/api/history"),  
+      get("/api/rl/status"),
+      get("/api/ab/results"),
+      get("/api/anomalies"),
+      get("/api/agent"),    
+      get("/api/forecast"),
+      get("/api/tuning"),   
+      get("/api/orders"),
+      get("/api/speed"),          
+      get("/api/replay/sessions"),  
     ]);
+
     if (sc) setScenario(sc);
     if (ct) setCity(ct);
     if (hi) setHistory(hi.slice(-20));
@@ -564,6 +577,8 @@ export default function App() {
     if (fc) setForecast(fc);
     if (tu) setTuning(tu);
     if (or) setOrders(or);
+    if (sp) setSpeed(sp.speed);
+    if (rp) setReplay(rp);
   };
 
   const fetchExplain = async (orderId) => {
@@ -1387,6 +1402,79 @@ export default function App() {
         {/* ── INCIDENT REPORTS ── */}
         <Panel title="LLM Incident Report Generator" titleIcon={FileText} style={{ marginBottom:16 }}>
           <ReportPanel />
+        </Panel>
+
+        {/* ── SIMULATION CONTROLS ── */}
+        <Panel title="Simulation Controls · Reset & Replay" titleIcon={RefreshCw} style={{ marginBottom:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+
+            {/* Reset + Speed */}
+            <div>
+              <div style={{ fontSize:10, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.15em', marginBottom:10 }}>SIMULATION CONTROL</div>
+              <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+                <Btn onClick={async () => {
+                  if (!window.confirm("Reset simulation? All progress will be lost.")) return;
+                  await post("/api/reset");
+                  notify("Simulation reset — fresh start!", "success");
+                  await refresh();
+                }} variant="danger">
+                  ⟳ RESET SIM
+                </Btn>
+              </div>
+
+              <div style={{ fontSize:10, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.15em', marginBottom:8 }}>SIMULATION SPEED</div>
+              <div style={{ display:'flex', gap:6 }}>
+                {[0.5, 1.0, 2.0, 5.0].map(s => (
+                  <button key={s}
+                    onClick={async () => {
+                      await post(`/api/speed/${s}`);
+                      setSpeed(s);
+                      notify(`Speed set to ${s}x`, "info");
+                    }}
+                    style={{
+                      flex:1, padding:'7px 0', cursor:'pointer',
+                      background: speed===s ? 'rgba(255,183,3,0.15)' : 'transparent',
+                      border: `1px solid ${speed===s ? 'var(--accent-amber)' : 'var(--border-glow)'}`,
+                      borderRadius:2, fontSize:11, fontFamily:'Orbitron', fontWeight:700,
+                      color: speed===s ? 'var(--accent-amber)' : 'var(--text-dim)',
+                      transition:'all 0.15s',
+                    }}>
+                    {s}x
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:9, fontFamily:'Share Tech Mono', color:'var(--text-dim)', marginTop:6 }}>
+                Current: <span style={{ color:'var(--accent-amber)' }}>{speed}x</span> · Tick interval: <span style={{ color:'var(--accent-cyan)' }}>{(3/speed).toFixed(1)}s</span>
+              </div>
+            </div>
+
+            {/* Replay viewer */}
+            <div>
+              <div style={{ fontSize:10, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.15em', marginBottom:10 }}>
+                SESSION REPLAY · {replay?.total_ticks || 0} TICKS LOGGED
+              </div>
+              {replay && replay.total_ticks > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <LineChart data={replay.sessions.slice(-50)}>
+                      <XAxis dataKey="tick" tick={{ fontSize:8, fill:'#3a6070', fontFamily:'Share Tech Mono' }} axisLine={{ stroke:'var(--border-dim)' }} tickLine={false} />
+                      <YAxis domain={[0,105]} tick={{ fontSize:8, fill:'#3a6070', fontFamily:'Share Tech Mono' }} axisLine={{ stroke:'var(--border-dim)' }} tickLine={false} />
+                      <Tooltip {...tooltipStyle} />
+                      <Line type="monotone" dataKey="on_time_rate" stroke="var(--accent-green)" strokeWidth={1.5} dot={false} name="On-Time %" />
+                      <Line type="monotone" dataKey="agents_busy" stroke="var(--accent-amber)" strokeWidth={1} dot={false} name="Agents Busy" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div style={{ fontSize:9, fontFamily:'Share Tech Mono', color:'var(--text-dim)', marginTop:6 }}>
+                    Ticks <span style={{ color:'var(--accent-cyan)' }}>{replay.tick_range?.min}</span> → <span style={{ color:'var(--accent-cyan)' }}>{replay.tick_range?.max}</span> · Stored in SQLite
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize:10, fontFamily:'Share Tech Mono', color:'var(--text-dim)', padding:8 }}>
+                  NO SESSION DATA<span className="blink">_</span>
+                </div>
+              )}
+            </div>
+          </div>
         </Panel>
         {/* ── FOOTER ── */}
         <div style={{
