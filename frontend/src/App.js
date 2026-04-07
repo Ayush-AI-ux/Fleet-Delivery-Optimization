@@ -513,6 +513,7 @@ export default function App() {
   const [explain,       setExplain]       = useState(null);
   const [selectedOrder, setSelectedOrder] = useState("");
   const [speed,   setSpeed]   = useState(1.0);
+  const [predictions, setPredictions] = useState(null);
   const [replay,  setReplay]  = useState(null);
   const wsRef = useRef(null);
 
@@ -551,7 +552,7 @@ export default function App() {
   const refresh = async () => {
     const [
       sc, ct, hi, rl, ab, an, ag, fc, tu, or,
-      sp, rp
+      sp, rp, pr
     ] = await Promise.all([
       get("/api/scenario"), 
       get("/api/city"),
@@ -565,6 +566,7 @@ export default function App() {
       get("/api/orders"),
       get("/api/speed"),          
       get("/api/replay/sessions"),  
+      get("/api/predictions"),
     ]);
 
     if (sc) setScenario(sc);
@@ -579,6 +581,7 @@ export default function App() {
     if (or) setOrders(or);
     if (sp) setSpeed(sp.speed);
     if (rp) setReplay(rp);
+    if (pr) setPredictions(pr);
   };
 
   const fetchExplain = async (orderId) => {
@@ -1476,6 +1479,52 @@ export default function App() {
             </div>
           </div>
         </Panel>
+
+        {/* ── PREDICTIVE SLA ── */}
+        {predictions && predictions.total_predictions > 0 && (
+          <Panel title="Predictive SLA Engine · 3-Tick Lookahead" titleIcon={Activity}
+            badge={<Badge text={`${predictions.total_prevented} PREVENTED`} color="green" />}
+            style={{ marginBottom: 16 }}
+          >
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:12 }}>
+              {[
+                { val: predictions.total_predictions, label:'PREDICTIONS MADE' },
+                { val: predictions.total_prevented,   label:'BREACHES PREVENTED' },
+                { val: `${predictions.lookahead_ticks} TICKS`, label:'LOOKAHEAD WINDOW' },
+              ].map(({ val, label }) => (
+                <div key={label} style={{ background:'var(--bg-panel-alt)', border:'1px solid var(--border-dim)', borderRadius:2, padding:'8px', textAlign:'center' }}>
+                  <div style={{ fontFamily:'Orbitron', fontSize:16, fontWeight:700, color:'var(--accent-green)', textShadow:'0 0 8px rgba(0,255,136,0.4)' }}>{val}</div>
+                  <div style={{ fontSize:8, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.12em', marginTop:3 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:160, overflowY:'auto' }}>
+              {predictions.recent?.slice(-6).reverse().map((p,i) => (
+                <div key={i} style={{
+                  display:'flex', alignItems:'center', gap:10,
+                  padding:'6px 10px', borderRadius:2,
+                  background: p.prevented ? 'rgba(0,255,136,0.05)' : 'rgba(255,183,3,0.05)',
+                  border:`1px solid ${p.prevented ? 'rgba(0,255,136,0.2)' : 'rgba(255,183,3,0.2)'}`,
+                  fontSize:10, fontFamily:'Share Tech Mono',
+                }}>
+                  <span style={{ color:'var(--text-dim)', minWidth:50 }}>[{p.time}]</span>
+                  <span style={{ color:'var(--accent-cyan)', minWidth:60 }}>T:{p.tick}</span>
+                  <span style={{ color: p.prevented ? 'var(--accent-green)' : 'var(--accent-amber)' }}>
+                    {p.prevented ? '✓ PREVENTED' : '⚠ AT RISK'}
+                  </span>
+                  <span style={{ color:'var(--text-secondary)', flex:1 }}>
+                    Order {p.order_id} | P{p.priority} | ETA {p.current_eta}s vs {p.deadline}s deadline | Risk {Math.round(p.risk_score*100)}%
+                  </span>
+                  {p.pre_assigned_to !== undefined && (
+                    <span style={{ color:'var(--accent-green)' }}>→ Agent {p.pre_assigned_to}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
+
+
         {/* ── FOOTER ── */}
         <div style={{
           borderTop: '1px solid var(--border-dim)', paddingTop: 12,

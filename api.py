@@ -29,6 +29,7 @@ from anomaly import get_detector
 from ab_testing import start_ab_test, get_ab_results
 from incident_report import start_report_generation, get_reports
 from database import get_tick_history
+from predictor import get_predictor
 # ── GLOBAL STATE ──────────────────────────────────────────────────────
 
 sim     = SimulationState()
@@ -161,6 +162,10 @@ def simulation_loop():
             # ── anomaly detection every 3 ticks ──
             if tick["value"] % 3 == 0:
                 get_detector().check(sim, metrics, tick["value"])
+                
+            # ── predictive SLA detection every 2 ticks ──
+            if tick["value"] % 2 == 0:
+                get_predictor().scan(sim, metrics, tick)
 
             # ── broadcast to WebSocket clients ──
             loop = _loop["ref"]
@@ -632,6 +637,11 @@ def get_replay_sessions():
         ]
     }
     
+#SLA Breach Predictions
+@app.get("/api/predictions")
+def get_predictions():
+    return get_predictor().get_summary()
+
 # ── WEBSOCKET ENDPOINT ────────────────────────────────────────────────
 
 @app.websocket("/ws")
