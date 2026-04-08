@@ -515,6 +515,7 @@ export default function App() {
   const [speed,   setSpeed]   = useState(1.0);
   const [predictions, setPredictions] = useState(null);
   const [replay,  setReplay]  = useState(null);
+  const [multiFleet, setMultiFleet] = useState(null);
   const wsRef = useRef(null);
 
   const notify = (msg, type = "success") => {
@@ -552,7 +553,7 @@ export default function App() {
   const refresh = async () => {
     const [
       sc, ct, hi, rl, ab, an, ag, fc, tu, or,
-      sp, rp, pr
+      sp, rp, pr, mf
     ] = await Promise.all([
       get("/api/scenario"), 
       get("/api/city"),
@@ -567,6 +568,7 @@ export default function App() {
       get("/api/speed"),          
       get("/api/replay/sessions"),  
       get("/api/predictions"),
+      get("/api/fleet/status"),
     ]);
 
     if (sc) setScenario(sc);
@@ -582,6 +584,7 @@ export default function App() {
     if (sp) setSpeed(sp.speed);
     if (rp) setReplay(rp);
     if (pr) setPredictions(pr);
+    if (mf) setMultiFleet(mf);
   };
 
   const fetchExplain = async (orderId) => {
@@ -1523,6 +1526,124 @@ export default function App() {
             </div>
           </Panel>
         )}
+
+        {/* ── MULTI FLEET ── */}
+        <Panel title="Multi-Fleet Simultaneous Simulation" titleIcon={Globe} style={{ marginBottom:16 }}>
+          <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center' }}>
+            <Btn onClick={async () => {
+              notify("Starting all city fleets simultaneously...","info");
+              await post("/api/fleet/start_all");
+              await refresh();
+              notify("All 3 fleets running simultaneously!","success");
+            }} variant="primary">▶ START ALL CITIES</Btn>
+            <Btn onClick={async () => {
+              await post("/api/fleet/stop_all");
+              await refresh();
+              notify("All fleets stopped","info");
+            }} variant="danger">■ STOP ALL</Btn>
+            {multiFleet?.enabled && (
+              <Badge text={`${multiFleet.fleets?.filter(f=>f.running).length} FLEETS LIVE`} color="green" />
+            )}
+          </div>
+
+          {multiFleet?.fleets?.length > 0 && (
+            <>
+              {/* Rankings */}
+              {multiFleet.rankings && (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:14 }}>
+                  {[
+                    { label:'BEST ON-TIME',    val: multiFleet.rankings.best_on_time },
+                    { label:'BEST EFFICIENCY', val: multiFleet.rankings.best_efficiency },
+                    { label:'MOST DELIVERED',  val: multiFleet.rankings.most_delivered },
+                    { label:'FEWEST FAILURES', val: multiFleet.rankings.lowest_failures },
+                  ].map(({ label, val }) => (
+                    <div key={label} style={{ background:'var(--bg-panel-alt)', border:'1px solid var(--border-dim)', borderRadius:2, padding:'8px', textAlign:'center' }}>
+                      <div style={{ fontFamily:'Orbitron', fontSize:13, fontWeight:700, color:'var(--accent-amber)' }}>{val || 'N/A'}</div>
+                      <div style={{ fontSize:8, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.1em', marginTop:3 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Fleet cards */}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+                {multiFleet.fleets.map(fleet => (
+                  <div key={fleet.city_key} style={{
+                    background:'var(--bg-panel-alt)',
+                    border:`1px solid ${fleet.running ? 'rgba(0,255,136,0.3)' : 'var(--border-dim)'}`,
+                    borderRadius:2, padding:12,
+                    borderTop:`2px solid ${fleet.running ? 'var(--accent-green)' : 'var(--border-glow)'}`,
+                  }}>
+                    {/* City header */}
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                      <div style={{ fontFamily:'Orbitron', fontSize:13, fontWeight:700, color:'var(--text-primary)' }}>
+                        {fleet.city_emoji} {fleet.city_name}
+                      </div>
+                      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                        <Badge text={fleet.running ? 'LIVE' : 'STOPPED'} color={fleet.running ? 'green' : 'red'} />
+                        <span style={{ fontSize:9, fontFamily:'Share Tech Mono', color:'var(--text-dim)' }}>T{fleet.tick}</span>
+                      </div>
+                    </div>
+
+                    {/* Metrics grid */}
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginBottom:10 }}>
+                      {[
+                        { label:'ON-TIME',   val:`${fleet.on_time_rate}%`,  color:'var(--accent-green)' },
+                        { label:'DELIVERED', val:fleet.delivered,            color:'var(--accent-cyan)'  },
+                        { label:'AVG DIST',  val:`${fleet.avg_distance}u`,  color:'var(--text-secondary)' },
+                        { label:'COST SAVED',val:`₹${fleet.cost_saved?.toLocaleString()}`, color:'var(--accent-amber)' },
+                      ].map(({ label, val, color }) => (
+                        <div key={label} style={{ background:'var(--bg-panel)', border:'1px solid var(--border-dim)', borderRadius:2, padding:'6px 8px' }}>
+                          <div style={{ fontSize:8, fontFamily:'Share Tech Mono', color:'var(--text-dim)', letterSpacing:'0.1em' }}>{label}</div>
+                          <div style={{ fontFamily:'Orbitron', fontSize:13, fontWeight:700, color, marginTop:2 }}>{val}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Agent load bar */}
+                    <div style={{ marginBottom:8 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, fontFamily:'Share Tech Mono', color:'var(--text-dim)', marginBottom:3 }}>
+                        <span>AGENT UTILIZATION</span>
+                        <span>{fleet.agents_busy}/{fleet.total_agents}</span>
+                      </div>
+                      <div style={{ height:4, background:'var(--bg-deep)', borderRadius:2, overflow:'hidden' }}>
+                        <div style={{
+                          height:'100%',
+                          width:`${fleet.total_agents > 0 ? (fleet.agents_busy/fleet.total_agents)*100 : 0}%`,
+                          background:'var(--accent-cyan)',
+                          borderRadius:2,
+                          transition:'width 0.5s ease',
+                          boxShadow:'0 0 6px var(--accent-cyan)',
+                        }} />
+                      </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div style={{ display:'flex', gap:6 }}>
+                      {!fleet.running ? (
+                        <Btn onClick={async () => {
+                          await post(`/api/fleet/start/${fleet.city_key}`);
+                          await refresh();
+                          notify(`${fleet.city_name} fleet started!`,"success");
+                        }} variant="success">▶ START</Btn>
+                      ) : (
+                        <Btn onClick={async () => {
+                          await post(`/api/fleet/stop/${fleet.city_key}`);
+                          await refresh();
+                        }} variant="danger">■ STOP</Btn>
+                      )}
+                      <Btn onClick={async () => {
+                        await post(`/api/fleet/reset/${fleet.city_key}`);
+                        await refresh();
+                        notify(`${fleet.city_name} fleet reset!`,"info");
+                      }}>⟳ RESET</Btn>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Panel>
 
 
         {/* ── FOOTER ── */}

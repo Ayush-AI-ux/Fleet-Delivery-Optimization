@@ -30,6 +30,7 @@ from ab_testing import start_ab_test, get_ab_results
 from incident_report import start_report_generation, get_reports
 from database import get_tick_history
 from predictor import get_predictor
+from multi_fleet import get_manager
 # ── GLOBAL STATE ──────────────────────────────────────────────────────
 
 sim     = SimulationState()
@@ -641,6 +642,31 @@ def get_replay_sessions():
 @app.get("/api/predictions")
 def get_predictions():
     return get_predictor().get_summary()
+
+#-----------MULTIFLEET MAnagere--------------
+@app.get("/api/fleet/status")
+def fleet_status():
+    return get_manager().get_all_snapshots()
+
+@app.post("/api/fleet/start/{city_key}")
+def fleet_start(city_key: str):
+    return get_manager().start_fleet(city_key)
+
+@app.post("/api/fleet/start_all")
+def fleet_start_all():
+    return get_manager().start_all()
+
+@app.post("/api/fleet/stop/{city_key}")
+def fleet_stop(city_key: str):
+    return get_manager().stop_fleet(city_key)
+
+@app.post("/api/fleet/stop_all")
+def fleet_stop_all():
+    return get_manager().stop_all()
+
+@app.post("/api/fleet/reset/{city_key}")
+def fleet_reset(city_key: str):
+    return get_manager().reset_fleet(city_key)
 
 # ── WEBSOCKET ENDPOINT ────────────────────────────────────────────────
 
