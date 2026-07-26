@@ -12,7 +12,7 @@ import {
   BarChart2, Search, FileText
 } from "lucide-react";
 
-const API = "http://127.0.0.1:8000";
+const API = "https://fleet-delivery-optimization-production.up.railway.app";
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 
@@ -529,7 +529,7 @@ export default function App() {
 
   useEffect(() => {
     const connect = () => {
-      const ws = new WebSocket("ws://127.0.0.1:8000/ws");
+      const ws = new WebSocket("wss://fleet-delivery-optimization-production.up.railway.app/ws");
       wsRef.current = ws;
       ws.onopen    = () => setWsStatus("live");
       ws.onclose   = () => { setWsStatus("reconnecting"); setTimeout(connect, 3000); };
