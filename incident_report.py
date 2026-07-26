@@ -1,21 +1,20 @@
 import time
 import threading
 import json
-from google import genai
 import os
+import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Load environment (so it can access GEMINI_API_KEY)
-load_dotenv()
+# ── LOAD ENVIRONMENT ──────────────────────────────────────────────────
 
-# Use the same client as agent.py for consistency
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+load_dotenv()
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
 # ── REPORT STORE ──────────────────────────────────────────────────────
 
 report_store = {
-    "reports":    [],
-    "generating": False,
+    "reports":        [],
+    "generating":     False,
     "last_generated": None
 }
 
@@ -75,25 +74,22 @@ Write a professional 200-250 word operations report with these sections:
 
 Use professional fleet operations language. Be specific with numbers. Format with clear section headers."""
 
-        # === NEW SDK ===
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
+        model    = genai.GenerativeModel("gemini-2.5-flash")
+        response = model.generate_content(prompt)
 
         report = {
-            "id":          len(report_store["reports"]) + 1,
-            "timestamp":   time.strftime("%Y-%m-%d %H:%M:%S"),
-            "tick":        tick_ref["value"],
-            "city":        city["name"],
-            "scenario":    scenario["name"],
-            "on_time":     metrics_ref.get_on_time_rate(),
-            "delivered":   metrics_ref.total_delivered,
-            "reassigned":  metrics_ref.total_reassigned,
-            "failed":      metrics_ref.total_failed,
+            "id":           len(report_store["reports"]) + 1,
+            "timestamp":    time.strftime("%Y-%m-%d %H:%M:%S"),
+            "tick":         tick_ref["value"],
+            "city":         city["name"],
+            "scenario":     scenario["name"],
+            "on_time":      metrics_ref.get_on_time_rate(),
+            "delivered":    metrics_ref.total_delivered,
+            "reassigned":   metrics_ref.total_reassigned,
+            "failed":       metrics_ref.total_failed,
             "avg_distance": round(avg_dist, 2),
-            "content":     response.text,
-            "status":      "complete"
+            "content":      response.text,
+            "status":       "complete"
         }
 
         report_store["reports"].append(report)
@@ -107,20 +103,21 @@ Use professional fleet operations language. Be specific with numbers. Format wit
         print(f"[REPORT ERROR] {e}")
         report_store["generating"] = False
 
-        # fallback rule-based report
         from engine import get_quality_metrics
+        from cities import get_current_city
+        from scenario import get_current_config
         avg_dist, on_time, _ = get_quality_metrics(sim_ref)
 
         report = {
-            "id":        len(report_store["reports"]) + 1,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "tick":      tick_ref["value"],
-            "city":      get_current_city()["name"],
-            "scenario":  get_current_config()["name"],
-            "on_time":   metrics_ref.get_on_time_rate(),
-            "delivered": metrics_ref.total_delivered,
-            "reassigned":metrics_ref.total_reassigned,
-            "failed":    metrics_ref.total_failed,
+            "id":           len(report_store["reports"]) + 1,
+            "timestamp":    time.strftime("%Y-%m-%d %H:%M:%S"),
+            "tick":         tick_ref["value"],
+            "city":         get_current_city()["name"],
+            "scenario":     get_current_config()["name"],
+            "on_time":      metrics_ref.get_on_time_rate(),
+            "delivered":    metrics_ref.total_delivered,
+            "reassigned":   metrics_ref.total_reassigned,
+            "failed":       metrics_ref.total_failed,
             "avg_distance": round(avg_dist, 2),
             "content": f"""EXECUTIVE SUMMARY
 Fleet operations completed {tick_ref['value']} ticks with {metrics_ref.get_on_time_rate()}% on-time delivery rate across {len(sim_ref.orders)} total orders.
@@ -141,6 +138,8 @@ RECOMMENDATIONS
         report_store["reports"].append(report)
         report_store["last_generated"] = time.strftime("%H:%M:%S")
         return report
+
+# ── PUBLIC API ────────────────────────────────────────────────────────
 
 def start_report_generation(sim_ref, metrics_ref, tick_ref, anomaly_ref=None):
     if report_store["generating"]:

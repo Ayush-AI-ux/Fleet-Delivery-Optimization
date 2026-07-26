@@ -1,15 +1,14 @@
 import time
 import threading
 import json
-from google import genai
 import os
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # ── LOAD ENVIRONMENT VARIABLES ────────────────────────────────────────
-load_dotenv()  # Loads GEMINI_API_KEY from .env file
 
-# ── CONFIGURE GEMINI CLIENT (NEW SDK) ────────────────────────────────
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+load_dotenv()
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
 # ── AGENT MEMORY ──────────────────────────────────────────────────────
 
@@ -44,19 +43,19 @@ def collect_system_state(sim_ref, metrics_ref, tick_ref):
     recent_logs = metrics_ref.decision_logs[-10:]
 
     return {
-        "tick":            tick_ref["value"],
-        "on_time_rate":    metrics_ref.get_on_time_rate(),
-        "avg_distance":    round(avg_dist, 2),
-        "total_orders":    len(sim_ref.orders),
-        "pending":         len([o for o in sim_ref.orders if o.status == "pending"]),
-        "assigned":        len([o for o in sim_ref.orders if o.status == "assigned"]),
-        "delivered":       metrics_ref.total_delivered,
-        "failed":          metrics_ref.total_failed,
-        "reassignments":   metrics_ref.total_reassigned,
-        "agents_busy":     len([a for a in sim_ref.agents if a.status == "busy"]),
-        "agents_idle":     len([a for a in sim_ref.agents if a.status == "idle"]),
-        "at_risk_orders":  len(at_risk),
-        "recent_logs":     recent_logs[-5:]
+        "tick":           tick_ref["value"],
+        "on_time_rate":   metrics_ref.get_on_time_rate(),
+        "avg_distance":   round(avg_dist, 2),
+        "total_orders":   len(sim_ref.orders),
+        "pending":        len([o for o in sim_ref.orders if o.status == "pending"]),
+        "assigned":       len([o for o in sim_ref.orders if o.status == "assigned"]),
+        "delivered":      metrics_ref.total_delivered,
+        "failed":         metrics_ref.total_failed,
+        "reassignments":  metrics_ref.total_reassigned,
+        "agents_busy":    len([a for a in sim_ref.agents if a.status == "busy"]),
+        "agents_idle":    len([a for a in sim_ref.agents if a.status == "idle"]),
+        "at_risk_orders": len(at_risk),
+        "recent_logs":    recent_logs[-5:]
     }
 
 # ── GEMINI AGENT ──────────────────────────────────────────────────────
@@ -104,13 +103,9 @@ RESPOND IN THIS EXACT JSON FORMAT:
 
 Respond ONLY with valid JSON, no other text."""
 
-        # === NEW SDK CALL ===
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-
-        raw = response.text.strip()
+        model    = genai.GenerativeModel("gemini-2.5-flash")
+        response = model.generate_content(prompt)
+        raw      = response.text.strip()
 
         # clean markdown fences if present
         if raw.startswith("```"):
@@ -120,7 +115,7 @@ Respond ONLY with valid JSON, no other text."""
         raw = raw.strip()
 
         decision = json.loads(raw)
-        print(f"[AGENT] Gemini response: {decision}")
+        print(f"[AGENT] Gemini response: severity={decision['severity']}")
 
         # log observation
         agent_memory["observations"].append({
@@ -234,5 +229,3 @@ def get_agent_state():
         "total_obs":     len(agent_memory["observations"]),
         "total_actions": len(agent_memory["actions"])
     }
-
-__all__ = ["client"]
