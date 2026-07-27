@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState, useRef } from "react";
 import { MapContainer, TileLayer, CircleMarker, Polyline,
          Tooltip, useMap } from "react-leaflet";
