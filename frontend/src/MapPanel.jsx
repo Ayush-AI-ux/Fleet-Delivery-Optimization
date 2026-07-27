@@ -29,7 +29,7 @@ const AGENT_COLORS = {
 
 function MapUpdater({ center, zoom }) {
   const map = useMap();
-  useEffect(() => { map.setView(center, zoom); }, [center, zoom]);
+  useEffect(() => { map.setView(center, zoom); }, [center, zoom, map]); // eslint-disable-line
   return null;
 }
 
