@@ -50,7 +50,6 @@ export default function MapPanel({ currentCity = "bangalore" }) {
   const agentTrails    = useRef({});   // { agent_id: [[lat,lon], ...] }
   const agentBreaching = useRef({});   // { agent_id: bool }
   const animFrame      = useRef(null);
-  const lastTick       = useRef(0);
   const startTime      = useRef(null);
 
   const [animatedAgents, setAnimatedAgents] = useState([]);

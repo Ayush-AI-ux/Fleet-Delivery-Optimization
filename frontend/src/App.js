@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Truck, Activity, Package, AlertTriangle,
-  CheckCircle, Clock, Zap, Globe, Settings,
+  CheckCircle, Zap, Globe, Settings,
   TrendingUp, MessageSquare, Brain, RefreshCw,
   BarChart2, Search, FileText
 } from "lucide-react";
@@ -340,13 +340,7 @@ const Btn = ({ onClick, children, variant = "default", disabled }) => {
   );
 };
 
-// ── DIVIDER LINE ─────────────────────────────────────────────────────
 
-const Divider = () => (
-  <div style={{
-    height: 1, background: 'var(--border-dim)', margin: '10px 0',
-  }} />
-);
 
 // ── LOG ENTRY ─────────────────────────────────────────────────────────
 
